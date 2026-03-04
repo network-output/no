@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>no-cli -- Fast, structured networking from the terminal</title>
+  <meta name="description" content="A fast, structured networking CLI for HTTP, WebSocket, TCP, UDP, DNS, Ping, WHOIS, MQTT, and SSE. Machine-readable JSON output, built-in jq filtering, and smart URL inference.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1a1a25;
+      --accent: #00ff88;
+      --accent-glow: rgba(0, 255, 136, 0.15);
+      --accent-dim: rgba(0, 255, 136, 0.6);
+      --text: #e0e0e8;
+      --text-muted: #6a6a7a;
+      --sidebar-width: 260px;
+      --font-mono: "JetBrains Mono", monospace;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 2rem;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ---- Scanlines overlay ---- */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+    }
+
+    /* ---- Sidebar ---- */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 0;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar-logo {
+      padding: 0 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-logo .logo-text {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      text-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(0, 255, 136, 0.08);
+      letter-spacing: -0.5px;
+    }
+
+    .sidebar-logo .logo-sub {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: block;
+      margin-top: 0.25rem;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 1rem 0;
+    }
+
+    .sidebar-nav a {
+      display: block;
+      padding: 0.45rem 1.5rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      border-left: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-nav a:hover {
+      color: var(--text);
+      background: rgba(0, 255, 136, 0.03);
+      text-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .sidebar-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(0, 255, 136, 0.05);
+    }
+
+    .sidebar-nav .nav-section {
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 1.2rem 1.5rem 0.4rem;
+      opacity: 0.6;
+    }
+
+    .sidebar-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .sidebar-footer a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      transition: color 0.2s ease;
+    }
+
+    .sidebar-footer a:hover {
+      color: var(--accent);
+    }
+
+    .sidebar-footer a svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* ---- Hamburger ---- */
+    .hamburger {
+      display: none;
+      position: fixed;
+      top: 1rem;
+      left: 1rem;
+      z-index: 200;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .hamburger:hover {
+      border-color: var(--accent);
+    }
+
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--text);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .hamburger span::before,
+    .hamburger span::after {
+      content: "";
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--text);
+      position: absolute;
+      transition: all 0.3s ease;
+    }
+
+    .hamburger span::before { top: -6px; }
+    .hamburger span::after { top: 6px; }
+
+    .hamburger.open span { background: transparent; }
+    .hamburger.open span::before { top: 0; transform: rotate(45deg); }
+    .hamburger.open span::after { top: 0; transform: rotate(-45deg); }
+
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 90;
+    }
+
+    /* ---- Main content ---- */
+    .content {
+      margin-left: var(--sidebar-width);
+      min-height: 100vh;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 2rem;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    .ascii-logo {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      line-height: 1.2;
+      color: var(--accent);
+      white-space: pre;
+      margin-bottom: 2rem;
+      text-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(0, 255, 136, 0.06);
+      opacity: 0.9;
+    }
+
+    .hero-tagline {
+      font-family: var(--font-body);
+      font-size: 1.35rem;
+      color: var(--text);
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+      max-width: 500px;
+    }
+
+    .hero-sub {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 2.5rem;
+      max-width: 460px;
+    }
+
+    .hero-install {
+      position: relative;
+      display: inline-block;
+    }
+
+    .hero-install code {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      box-shadow: -4px 0 12px var(--accent-glow);
+      padding: 1rem 3.5rem 1rem 1.5rem;
+      border-radius: 6px;
+      color: var(--text);
+    }
+
+    .hero-protocols {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 3rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hero-protocols span {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .hero-protocols span:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* ---- Section layout ---- */
+    .section {
+      padding: 4rem 3rem;
+      border-bottom: 1px solid var(--border);
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .section:last-child {
+      border-bottom: none;
+    }
+
+    .section h2 {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: -0.3px;
+    }
+
+    .section h2 .accent {
+      color: var(--accent);
+    }
+
+    .section h3 {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2rem 0 0.75rem;
+    }
+
+    .section h3:first-of-type {
+      margin-top: 0.5rem;
+    }
+
+    .section p {
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .section p.muted {
+      color: var(--text-muted);
+    }
+
+    /* ---- Code blocks ---- */
+    pre {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      box-shadow: -4px 0 12px var(--accent-glow);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0 1.5rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      line-height: 1.65;
+      color: var(--text);
+      tab-size: 2;
+    }
+
+    pre code {
+      font-family: inherit;
+      font-size: inherit;
+      background: none;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      opacity: 0;
+    }
+
+    pre:hover .copy-btn {
+      opacity: 1;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .copy-btn.copied {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Inline code */
+    p code, li code, td code {
+      font-family: var(--font-mono);
+      font-size: 0.82em;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      color: var(--accent-dim);
+    }
+
+    /* ---- Tables ---- */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      text-align: left;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    tbody tr:hover {
+      background: rgba(0, 255, 136, 0.02);
+    }
+
+    tbody td:first-child code {
+      white-space: nowrap;
+    }
+
+    /* ---- Quick start grid ---- */
+    .quickstart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .quickstart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .quickstart-card:hover {
+      border-color: rgba(0, 255, 136, 0.3);
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .quickstart-card .card-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      margin-bottom: 0.65rem;
+      display: block;
+    }
+
+    .quickstart-card pre {
+      margin: 0;
+      border: none;
+      border-left: none;
+      box-shadow: none;
+      background: var(--bg);
+      padding: 0.65rem 0.85rem;
+      font-size: 0.78rem;
+    }
+
+    /* ---- Protocol badge ---- */
+    .proto-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ---- Description list ---- */
+    .flag-list {
+      list-style: none;
+    }
+
+    .flag-list li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .flag-list li:last-child {
+      border-bottom: none;
+    }
+
+    /* ---- Divider ---- */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .section-divider::before,
+    .section-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .section-divider span {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ---- Footer ---- */
+    .site-footer {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+    }
+
+    .site-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* ---- JSON output envelope ---- */
+    .envelope-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+      margin: 1rem 0 1.5rem;
+    }
+
+    .envelope-block .field {
+      display: flex;
+      gap: 1rem;
+      padding: 0.35rem 0;
+      font-size: 0.88rem;
+    }
+
+    .envelope-block .field-key {
+      font-family: var(--font-mono);
+      color: var(--accent-dim);
+      min-width: 100px;
+    }
+
+    .envelope-block .field-val {
+      color: var(--text-muted);
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .sidebar-overlay.open {
+        display: block;
+      }
+
+      .hamburger {
+        display: flex;
+      }
+
+      .content {
+        margin-left: 0;
+      }
+
+      .hero {
+        padding: 6rem 1.5rem 4rem;
+      }
+
+      .ascii-logo {
+        font-size: 0.42rem;
+      }
+
+      .hero-tagline {
+        font-size: 1.15rem;
+      }
+
+      .section {
+        padding: 3rem 1.5rem;
+      }
+
+      .quickstart-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 0.8rem;
+      }
+
+      thead th, tbody td {
+        padding: 0.5rem 0.65rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .ascii-logo {
+        font-size: 0.35rem;
+      }
+
+      .hero-protocols {
+        gap: 0.75rem;
+      }
+    }
+
+    /* ---- Syntax highlighting ---- */
+    .sh-cmd { color: var(--accent); font-weight: 600; }
+    .sh-flag { color: #c4a7ff; }
+    .sh-str { color: #ffd580; }
+    .sh-pipe { color: var(--text-muted); font-weight: 700; }
+    .sh-comment { color: var(--text-muted); font-style: italic; }
+    .sh-var { color: #ff8080; }
+    .json-key { color: #c4a7ff; }
+    .json-str { color: #ffd580; }
+    .json-num { color: var(--accent); }
+    .json-bool { color: #ff8080; }
+    .json-null { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Scanlines overlay -->
+  <div class="scanlines"></div>
+
+  <!-- Mobile overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Hamburger -->
+  <button class="hamburger" id="hamburger" aria-label="Toggle navigation">
+    <span></span>
+  </button>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <a href="#hero" class="logo-text">no</a>
+      <span class="logo-sub">network output</span>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section">Getting Started</div>
+      <a href="#hero">Home</a>
+      <a href="#quick-start">Quick Start</a>
+      <div class="nav-section">Protocols</div>
+      <a href="#http">HTTP</a>
+      <a href="#websocket">WebSocket</a>
+      <a href="#tcp">TCP</a>
+      <a href="#udp">UDP</a>
+      <a href="#dns">DNS</a>
+      <a href="#ping">Ping</a>
+      <a href="#whois">WHOIS</a>
+      <a href="#mqtt">MQTT</a>
+      <a href="#sse">SSE</a>
+      <div class="nav-section">Features</div>
+      <a href="#jq">jq Filtering</a>
+      <a href="#output">Output Format</a>
+      <a href="#flags">Global Flags</a>
+      <div class="nav-section">Reference</div>
+      <a href="#exit-codes">Exit Codes</a>
+      <a href="#env">Environment</a>
+      <a href="#url-normalization">URL Normalization</a>
+    </div>
+    <div class="sidebar-footer">
+      <a href="https://github.com/felipefdl/no-cli" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="content">
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <div class="ascii-logo" aria-hidden="true">
+ ███╗   ██╗  ██████╗
+ ████╗  ██║ ██╔═══██╗
+ ██╔██╗ ██║ ██║   ██║
+ ██║╚██╗██║ ██║   ██║
+ ██║ ╚████║ ╚██████╔╝
+ ╚═╝  ╚═══╝  ╚═════╝</div>
+      <h1 class="hero-tagline">Fast, structured networking from the terminal.</h1>
+      <p class="hero-sub">HTTP, WebSocket, TCP, UDP, DNS, Ping, WHOIS, MQTT, and SSE with consistent JSON output. Built for machines, readable by humans.</p>
+      <div class="hero-install">
+        <code data-copy="cargo install no-cli">$ cargo install no-cli</code>
+        <button class="copy-btn" onclick="copyText('cargo install no-cli', this)" style="opacity: 1;">Copy</button>
+      </div>
+      <div class="hero-protocols">
+        <span>HTTP</span>
+        <span>WebSocket</span>
+        <span>TCP</span>
+        <span>UDP</span>
+        <span>DNS</span>
+        <span>MQTT</span>
+        <span>SSE</span>
+        <span>jq</span>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="section" id="quick-start">
+      <h2><span class="accent">#</span> Quick Start</h2>
+      <p>One command per protocol. All output follows the same structured JSON envelope.</p>
+      <div class="quickstart-grid">
+        <div class="quickstart-card">
+          <span class="card-label">HTTP</span>
+          <pre><code class="lang-sh">no http GET example.com</code></pre>
+        </div>
+        <div class="quickstart-card">
+          <span class="card-label">WebSocket</span>
+          <pre><code class="lang-sh">no ws listen ws://echo.websocket.org</code></pre>
+        </div>
+        <div class="quickstart-card">
+          <span class="card-label">TCP</span>
+          <pre><code class="lang-sh">no tcp connect example.com:80</code></pre>
+        </div>
+        <div class="quickstart-card">
+          <span class="card-label">MQTT</span>
+          <pre><code class="lang-sh">no mqtt sub localhost:1883 -t sensors/temp</code></pre>
+        </div>
+        <div class="quickstart-card">
+          <span class="card-label">SSE</span>
+          <pre><code class="lang-sh">no sse https://stream.example.com/events</code></pre>
+        </div>
+        <div class="quickstart-card">
+          <span class="card-label">jq</span>
+          <pre><code class="lang-sh">echo '{"a":1}' | no jq '.a'</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- HTTP -->
+    <section class="section" id="http">
+      <h2><span class="accent">#</span> HTTP</h2>
+      <p>Full-featured HTTP client with support for all standard methods, headers, authentication, request bodies, file downloads, and stdin piping.</p>
+
+      <h3>Methods</h3>
+      <p>The first argument is the HTTP method. Supported: <code>GET</code> (default), <code>POST</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>, <code>HEAD</code>, <code>OPTIONS</code>.</p>
+      <pre><code class="lang-sh">no http GET https://httpbin.org/get
+no http POST https://api.example.com/data
+no http DELETE https://api.example.com/items/42</code></pre>
+
+      <h3>Headers</h3>
+      <p>Use <code>-H</code> to add request headers. The flag is repeatable.</p>
+      <pre><code class="lang-sh">no http POST https://api.example.com/data \
+  -H "Content-Type:application/json" \
+  -H "X-Request-Id:abc123"</code></pre>
+
+      <h3>Request Body</h3>
+      <p>Use <code>-b</code> to send a request body inline, or <code>--stdin</code> to read it from standard input.</p>
+      <pre><code class="lang-sh"># Inline body
+no http POST https://api.example.com/data -b '{"key":"value"}'
+
+# Body from stdin
+cat payload.json | no http POST https://api.example.com/data --stdin</code></pre>
+
+      <h3>Authentication</h3>
+      <p>Bearer tokens and Basic auth are supported as first-class flags.</p>
+      <pre><code class="lang-sh"># Bearer token
+no http GET https://api.example.com --bearer $TOKEN
+
+# Basic auth
+no http GET https://api.example.com --basic user:pass</code></pre>
+      <p class="muted">Fallback: set <code>NO_AUTH_TOKEN</code> or <code>NO_BASIC_AUTH</code> environment variables for default credentials.</p>
+
+      <h3>File Download</h3>
+      <p>Use <code>-o</code> to save the response body to a file. A progress bar is shown during the download.</p>
+      <pre><code class="lang-sh">no http GET https://example.com/file.tar.gz -o file.tar.gz</code></pre>
+
+      <h3>Response Shape</h3>
+      <pre><code class="lang-json">{
+  "type": "response",
+  "protocol": "http",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "data": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "body": { "message": "ok" },
+    "bytes": 1234
+  }
+}</code></pre>
+      <p class="muted">With <code>-v</code> (verbose), a <code>metadata</code> field is added containing <code>method</code>, <code>url</code>, and <code>time_ms</code>.</p>
+    </section>
+
+    <!-- WebSocket -->
+    <section class="section" id="websocket">
+      <h2><span class="accent">#</span> WebSocket</h2>
+      <p>WebSocket support with two subcommands: <code>listen</code> for receiving messages and <code>send</code> for sending a single message.</p>
+
+      <h3>Listen</h3>
+      <p>Open a persistent connection and stream incoming messages.</p>
+      <pre><code class="lang-sh">no ws listen ws://localhost:8080
+no ws listen api.example.com/ws           # auto-infers wss://
+no ws listen localhost:8080/ws -n 5       # stop after 5 messages</code></pre>
+
+      <h3>Send</h3>
+      <p>Connect, send one message, and print the response.</p>
+      <pre><code class="lang-sh">no ws send ws://localhost:8080 -m "hello"</code></pre>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Connection event
+{ "type": "connection", "data": { "status": "connected", "url": "..." } }
+
+// Text message
+{ "type": "message", "data": { "data": "hello world", "binary": false } }
+
+// Binary message
+{ "type": "message", "data": { "binary": true, "length": 4, "hex": "deadbeef" } }
+
+// Close event
+{ "type": "connection", "data": { "status": "closed", "code": 1000, "reason": "" } }</code></pre>
+    </section>
+
+    <!-- TCP -->
+    <section class="section" id="tcp">
+      <h2><span class="accent">#</span> TCP</h2>
+      <p>Raw TCP connections with <code>connect</code> and <code>listen</code> subcommands. Address format is <code>host:port</code>.</p>
+
+      <h3>Connect</h3>
+      <p>Connect to a remote TCP server. Optionally send a message or pipe data from stdin.</p>
+      <pre><code class="lang-sh">no tcp connect localhost:9090 -m "hello"
+no tcp connect [::1]:9090 -m "hello"       # IPv6
+no tcp connect localhost:9090 --stdin
+no tcp connect example.com:80 -n 1         # stop after 1 message</code></pre>
+
+      <h3>Listen</h3>
+      <p>Start a TCP server and accept incoming connections.</p>
+      <pre><code class="lang-sh">no tcp listen :9090
+no tcp listen 0.0.0.0:9090
+no tcp listen [::]:9090                    # IPv6 listen</code></pre>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Connection events
+{ "type": "connection", "data": { "status": "connected", "address": "..." } }
+{ "type": "connection", "data": { "status": "listening", "address": "..." } }
+{ "type": "connection", "data": { "status": "accepted", "peer": "..." } }
+
+// Text data
+{ "type": "message", "data": { "data": "..." } }
+
+// Binary data (non-UTF-8)
+{ "type": "message", "data": { "binary": true, "length": 4, "hex": "deadbeef" } }</code></pre>
+    </section>
+
+    <!-- UDP -->
+    <section class="section" id="udp">
+      <h2><span class="accent">#</span> UDP</h2>
+      <p>Connectionless UDP datagrams with <code>send</code> and <code>listen</code> subcommands. Address format is <code>host:port</code> for IPv4 or <code>[host]:port</code> for IPv6.</p>
+
+      <h3>Send</h3>
+      <p>Send a UDP datagram. By default it is fire-and-forget -- the process exits immediately after sending. Use <code>--wait</code> to wait for a response.</p>
+      <pre><code class="lang-sh"># Send a datagram
+no udp send 127.0.0.1:9090 -m "hello"
+no udp send [::1]:9090 -m "hello"          # IPv6
+
+# Send and wait for echo
+no udp send 127.0.0.1:9090 -m "ping" --wait 3s</code></pre>
+
+      <h3>--wait Modes</h3>
+      <p>The <code>--wait</code> flag controls whether <code>send</code> waits for a response after sending:</p>
+      <table>
+        <thead>
+          <tr><th>Usage</th><th>Behavior</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><em>Omitted</em></td><td>Fire-and-forget. Exit immediately after sending.</td></tr>
+          <tr><td><code>--wait</code></td><td>Wait indefinitely for a response (respects <code>--timeout</code> if set).</td></tr>
+          <tr><td><code>--wait 3s</code></td><td>Wait up to 3 seconds for a response, then exit cleanly.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Listen</h3>
+      <p>Listen for incoming UDP datagrams on a local address.</p>
+      <pre><code class="lang-sh"># Listen for incoming datagrams
+no udp listen :9090
+no udp listen [::]:9090                    # IPv6 listen
+
+# Listen with count limit
+no udp listen :9090 --count 5</code></pre>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Send confirmation
+{ "type": "response", "data": { "status": "sent", "address": "127.0.0.1:9090", "bytes": 5 } }
+
+// Received response (when using --wait)
+{ "type": "message", "data": { "data": "pong", "peer": "127.0.0.1:9090" } }
+
+// Listen events
+{ "type": "connection", "data": { "status": "listening", "address": "0.0.0.0:9090" } }
+{ "type": "message", "data": { "data": "hello", "peer": "192.168.1.10:54321" } }
+
+// Binary data (non-UTF-8)
+{ "type": "message", "data": { "binary": true, "length": 4, "hex": "deadbeef", "peer": "..." } }</code></pre>
+    </section>
+
+    <!-- DNS -->
+    <section class="section" id="dns">
+      <h2><span class="accent">#</span> DNS</h2>
+      <p>DNS lookups with support for all common record types. If the argument is an IP address, it automatically performs a PTR (reverse) lookup.</p>
+
+      <h3>Basic Usage</h3>
+      <pre><code class="lang-sh">no dns example.com
+no dns example.com AAAA
+no dns google.com MX
+no dns 8.8.8.8                    # auto-detects reverse (PTR) lookup
+no dns example.com --server 1.1.1.1
+no dns example.com --server 2001:4860:4860::8888   # IPv6 DNS server</code></pre>
+
+      <h3>Record Types</h3>
+      <p>Supported record types: <code>A</code>, <code>AAAA</code>, <code>MX</code>, <code>TXT</code>, <code>CNAME</code>, <code>NS</code>, <code>SOA</code>, <code>SRV</code>, <code>PTR</code>.</p>
+      <p class="muted">When the record type is omitted, it defaults to <code>A</code>. When the argument is an IP address, it defaults to <code>PTR</code>.</p>
+
+      <h3>Custom Server</h3>
+      <p>Use <code>--server</code> to specify a DNS resolver instead of the system default.</p>
+      <pre><code class="lang-sh">no dns example.com --server 1.1.1.1
+no dns example.com AAAA --server 8.8.8.8</code></pre>
+
+      <h3>Response Shape</h3>
+      <pre><code class="lang-json">{
+  "type": "response",
+  "protocol": "dns",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "data": {
+    "name": "example.com",
+    "type": "A",
+    "records": [
+      { "value": "93.184.216.34", "ttl": 3600 }
+    ]
+  }
+}</code></pre>
+    </section>
+
+    <!-- Ping -->
+    <section class="section" id="ping">
+      <h2><span class="accent">#</span> Ping</h2>
+      <p>ICMP ping with per-ping timing and aggregate statistics. Supports IPv4 and IPv6. Uses non-privileged ICMP sockets on macOS; Linux may require <code>CAP_NET_RAW</code>.</p>
+
+      <h3>Basic Usage</h3>
+      <pre><code class="lang-sh">no ping 127.0.0.1
+no ping ::1                               # IPv6
+no ping example.com
+no ping example.com -n 2              # send 2 pings (default: 4)
+no ping 127.0.0.1 --interval 500ms    # 500ms between pings</code></pre>
+
+      <h3>Options</h3>
+      <p>Use the global <code>-n</code> flag to control the number of pings (default 4) and <code>--timeout</code> for per-ping timeout (default 1s). The <code>--interval</code> flag sets the delay between pings.</p>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Per-ping reply (type: message)
+{
+  "type": "message",
+  "protocol": "ping",
+  "data": {
+    "seq": 0, "host": "example.com", "ip": "93.184.216.34",
+    "ttl": 56, "size": 64, "time_ms": 12.3
+  }
+}
+
+// Summary (type: response)
+{
+  "type": "response",
+  "protocol": "ping",
+  "data": {
+    "host": "example.com", "ip": "93.184.216.34",
+    "transmitted": 4, "received": 4, "loss_pct": 0.0,
+    "min_ms": 11.2, "avg_ms": 12.5, "max_ms": 14.1
+  }
+}</code></pre>
+    </section>
+
+    <!-- WHOIS -->
+    <section class="section" id="whois">
+      <h2><span class="accent">#</span> WHOIS</h2>
+      <p>WHOIS domain and IP lookups via raw TCP to port 43. The WHOIS server is auto-detected based on the TLD or can be specified manually.</p>
+
+      <h3>Basic Usage</h3>
+      <pre><code class="lang-sh">no whois example.com
+no whois 8.8.8.8
+no whois ::1                                         # IPv6 address
+no whois example.com --server whois.verisign-grs.com</code></pre>
+
+      <h3>Server Detection</h3>
+      <p>The WHOIS server is automatically selected based on the query:</p>
+      <ul>
+        <li>IP addresses use <code>whois.arin.net</code></li>
+        <li><code>.com</code> / <code>.net</code> use <code>whois.verisign-grs.com</code></li>
+        <li><code>.org</code> uses <code>whois.pir.org</code></li>
+        <li><code>.io</code> uses <code>whois.nic.io</code></li>
+        <li><code>.dev</code> / <code>.app</code> use <code>whois.nic.google</code></li>
+        <li>Unknown TLDs fall back to <code>whois.iana.org</code></li>
+      </ul>
+
+      <h3>Response Shape</h3>
+      <pre><code class="lang-json">{
+  "type": "response",
+  "protocol": "whois",
+  "data": {
+    "query": "example.com",
+    "server": "whois.verisign-grs.com",
+    "response": "Domain Name: EXAMPLE.COM\r\n..."
+  }
+}</code></pre>
+    </section>
+
+    <!-- MQTT -->
+    <section class="section" id="mqtt">
+      <h2><span class="accent">#</span> MQTT</h2>
+      <p>MQTT pub/sub with <code>sub</code> and <code>pub</code> subcommands. Broker address is a positional argument in <code>host:port</code> format.</p>
+
+      <h3>Subscribe</h3>
+      <p>Subscribe to a topic and stream incoming messages.</p>
+      <pre><code class="lang-sh">no mqtt sub localhost:1883 -t "sensor/temp"
+no mqtt sub [::1]:1883 -t "sensor/temp"             # IPv6
+no mqtt sub localhost:1883 -t "sensor/temp" -n 10   # stop after 10 messages</code></pre>
+
+      <h3>Publish</h3>
+      <p>Publish a single message to a topic.</p>
+      <pre><code class="lang-sh">no mqtt pub localhost:1883 -t "sensor/temp" -m '{"value":22.5}'</code></pre>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Subscribe confirmation
+{ "type": "connection", "data": { "status": "subscribed", "topic": "sensor/temp" } }
+
+// Incoming message
+{ "type": "message", "data": { "topic": "sensor/temp", "payload": "...", "qos": 0 } }
+
+// Publish confirmation
+{ "type": "response", "data": { "status": "published", "topic": "sensor/temp", "payload": "..." } }</code></pre>
+    </section>
+
+    <!-- SSE -->
+    <section class="section" id="sse">
+      <h2><span class="accent">#</span> SSE</h2>
+      <p>Connect to a Server-Sent Events endpoint and stream events. Supports authentication and custom headers.</p>
+
+      <pre><code class="lang-sh">no sse https://example.com/events
+no sse https://example.com/events --bearer $TOKEN
+no sse https://example.com/events -H "X-Custom:value"
+no sse https://example.com/events -n 5     # stop after 5 events</code></pre>
+
+      <h3>Authentication</h3>
+      <p>SSE supports <code>--bearer</code> and <code>--basic</code> flags, plus the <code>NO_AUTH_TOKEN</code> and <code>NO_BASIC_AUTH</code> environment variable fallbacks.</p>
+
+      <h3>Response Shapes</h3>
+      <pre><code class="lang-json">// Connection event
+{ "type": "connection", "data": { "status": "connected", "url": "..." } }
+
+// SSE event
+{
+  "type": "message",
+  "data": {
+    "data": "event payload",
+    "event": "update",
+    "id": "1"
+  }
+}</code></pre>
+    </section>
+
+    <!-- jq Filtering -->
+    <section class="section" id="jq">
+      <h2><span class="accent">#</span> jq Filtering</h2>
+      <p>Built-in jq filtering powered by <code>jaq-core</code> (pure Rust). No external <code>jq</code> binary required.</p>
+
+      <h3>Global Flag: --jq</h3>
+      <p>Apply a jq expression to the output of any command. The filter receives the full <code>NetResponse</code> JSON envelope as input.</p>
+      <pre><code class="lang-sh"># Extract just the HTTP status code
+no http GET example.com --jq '.data.status'
+
+# Stream WebSocket message payloads
+no ws listen localhost:8080 --jq '.data' -n 5
+
+# Extract SSE event data
+no sse example.com/events --jq '.data.data' -n 1
+
+# Drill into nested JSON body
+no http GET example.com/api --jq '.data.body.items[]'</code></pre>
+
+      <h3>Standalone Subcommand: no jq</h3>
+      <p>Filter arbitrary JSON from stdin. Works as a lightweight, portable <code>jq</code> replacement.</p>
+      <pre><code class="lang-sh">echo '{"a":1,"b":2}' | no jq '.a'
+# Output: 1
+
+echo '{"s":"hello"}' | no jq '.s'
+# Output: hello
+
+echo '[1,2,3]' | no jq '.[]'
+# Output: 1
+# Output: 2
+# Output: 3
+
+# Pipe protocol output through standalone jq
+no http GET https://httpbin.org/get | no jq '.data.body'</code></pre>
+
+      <p class="muted">String results print raw (without quotes), matching <code>jq -r</code> behavior. Error responses (<code>type: "error"</code>) bypass the filter and print normally.</p>
+    </section>
+
+    <!-- Output Format -->
+    <section class="section" id="output">
+      <h2><span class="accent">#</span> Output Format</h2>
+      <p>All protocol handlers emit structured JSON through a consistent envelope. Output mode is automatically detected based on whether stdout is a TTY.</p>
+
+      <h3>Mode Detection</h3>
+      <table>
+        <thead>
+          <tr><th>Condition</th><th>Mode</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>--json</code> flag</td><td>JSON (one object per line)</td></tr>
+          <tr><td><code>--pretty</code> flag</td><td>Pretty (colored, human-readable)</td></tr>
+          <tr><td>stdout is a TTY</td><td>Pretty</td></tr>
+          <tr><td>stdout is piped</td><td>JSON</td></tr>
+        </tbody>
+      </table>
+
+      <h3>JSON Envelope</h3>
+      <pre><code class="lang-json">{
+  "type": "response",
+  "protocol": "http",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "data": { ... },
+  "metadata": { ... }
+}</code></pre>
+
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>type</code></td><td>string</td><td>One of <code>response</code>, <code>message</code>, <code>connection</code>, <code>error</code></td></tr>
+          <tr><td><code>protocol</code></td><td>string</td><td>One of <code>http</code>, <code>ws</code>, <code>tcp</code>, <code>udp</code>, <code>dns</code>, <code>mqtt</code>, <code>sse</code></td></tr>
+          <tr><td><code>timestamp</code></td><td>string</td><td>RFC 3339 UTC with millisecond precision</td></tr>
+          <tr><td><code>data</code></td><td>object</td><td>Protocol-specific payload</td></tr>
+          <tr><td><code>metadata</code></td><td>object</td><td>Optional; present when <code>-v</code> is used. Omitted from JSON when absent.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>ResponseType Semantics</h3>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>response</code></td><td>Final result from a request (HTTP response, MQTT publish confirmation)</td></tr>
+          <tr><td><code>message</code></td><td>Streamed data from a long-lived connection (WS frame, TCP data, SSE event, MQTT message)</td></tr>
+          <tr><td><code>connection</code></td><td>Lifecycle event (connected, closed, listening, accepted, subscribed)</td></tr>
+          <tr><td><code>error</code></td><td>Structured error with code and message</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Global Flags -->
+    <section class="section" id="flags">
+      <h2><span class="accent">#</span> Global Flags</h2>
+      <p>These flags can be placed before or after the subcommand and apply to all protocols.</p>
+
+      <table>
+        <thead>
+          <tr><th>Flag</th><th>Short</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>--json</code></td><td></td><td>Force JSON output (one object per line, no colors)</td></tr>
+          <tr><td><code>--pretty</code></td><td></td><td>Force pretty-printed, human-readable output</td></tr>
+          <tr><td><code>--timeout DURATION</code></td><td></td><td>Request timeout (e.g. 5s, 300ms, 1m)</td></tr>
+          <tr><td><code>--no-color</code></td><td></td><td>Disable colored output in pretty mode</td></tr>
+          <tr><td><code>--verbose</code></td><td><code>-v</code></td><td>Include metadata in responses (method, URL, timing, bytes)</td></tr>
+          <tr><td><code>--count N</code></td><td><code>-n</code></td><td>Stop after N data messages (streaming protocols only; lifecycle events are not counted)</td></tr>
+          <tr><td><code>--jq EXPR</code></td><td></td><td>Apply a jq filter expression to each response before printing</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Flag Placement</h3>
+      <pre><code class="lang-sh"># Before subcommand
+no --jq '.data.status' http GET example.com
+
+# After subcommand arguments
+no http GET example.com --jq '.data.status'
+
+# Mixed
+no --json http GET example.com -v</code></pre>
+    </section>
+
+    <!-- Exit Codes -->
+    <section class="section" id="exit-codes">
+      <h2><span class="accent">#</span> Exit Codes</h2>
+      <p>Every error maps to a deterministic exit code for scripting and automation.</p>
+
+      <table>
+        <thead>
+          <tr><th>Code</th><th>Meaning</th><th>Causes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>0</code></td><td>Success</td><td>Request completed normally</td></tr>
+          <tr><td><code>1</code></td><td>Connection / I/O Error</td><td>Connection refused, DNS resolution failure, generic I/O error</td></tr>
+          <tr><td><code>2</code></td><td>Protocol Error</td><td>Protocol-level failure, TLS handshake error, unexpected response</td></tr>
+          <tr><td><code>3</code></td><td>Timeout</td><td>Connection or read timed out</td></tr>
+          <tr><td><code>4</code></td><td>Invalid Input</td><td>Bad URL, invalid header format, unknown method, invalid port, bad jq expression</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Error Output</h3>
+      <p>Errors follow the same JSON envelope with <code>"type": "error"</code>:</p>
+      <pre><code class="lang-json">{
+  "type": "error",
+  "protocol": "http",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "data": {
+    "code": "CONNECTION_REFUSED",
+    "message": "connection refused"
+  }
+}</code></pre>
+      <p class="muted">Error codes are serialized in <code>SCREAMING_SNAKE_CASE</code>: <code>CONNECTION_REFUSED</code>, <code>DNS_RESOLUTION</code>, <code>IO_ERROR</code>, <code>PROTOCOL_ERROR</code>, <code>TLS_ERROR</code>, <code>CONNECTION_TIMEOUT</code>, <code>INVALID_INPUT</code>.</p>
+    </section>
+
+    <!-- Environment Variables -->
+    <section class="section" id="env">
+      <h2><span class="accent">#</span> Environment Variables</h2>
+      <p>Default authentication credentials for HTTP and SSE requests. These are used when no explicit <code>--bearer</code> or <code>--basic</code> flag is provided.</p>
+
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Description</th><th>Format</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>NO_AUTH_TOKEN</code></td><td>Default bearer token for HTTP and SSE requests</td><td>Token string</td></tr>
+          <tr><td><code>NO_BASIC_AUTH</code></td><td>Default basic auth credentials for HTTP and SSE requests</td><td><code>user:pass</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Precedence</h3>
+      <pre><code class="lang-sh"># 1. Explicit flag (highest priority)
+no http GET https://api.example.com --bearer my-token
+
+# 2. NO_AUTH_TOKEN environment variable
+export NO_AUTH_TOKEN="my-token"
+no http GET https://api.example.com
+
+# 3. NO_BASIC_AUTH (used when --basic not set and NO_AUTH_TOKEN not set)
+export NO_BASIC_AUTH="admin:secret"
+no http GET https://api.example.com</code></pre>
+    </section>
+
+    <!-- URL Normalization -->
+    <section class="section" id="url-normalization">
+      <h2><span class="accent">#</span> URL Normalization</h2>
+      <p>HTTP, WebSocket, and SSE protocols auto-infer the URL scheme when you omit it. The scheme is chosen based on whether the host is a local/private address or a public one.</p>
+
+      <h3>Rules</h3>
+      <table>
+        <thead>
+          <tr><th>Host</th><th>HTTP Scheme</th><th>WS Scheme</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>localhost</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>127.0.0.1</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>::1</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>0.0.0.0</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>10.*</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>172.16-31.*</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>192.168.*</code></td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>fc00::/7</code> (ULA)</td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td><code>fe80::/10</code> (link-local)</td><td><code>http://</code></td><td><code>ws://</code></td></tr>
+          <tr><td>Everything else</td><td><code>https://</code></td><td><code>wss://</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><code class="lang-sh"># Local addresses get http:// / ws://
+no http GET localhost:3000/api         # -> http://localhost:3000/api
+no ws listen localhost:8080/ws         # -> ws://localhost:8080/ws
+no http GET 192.168.1.10:3000/api      # -> http://192.168.1.10:3000/api
+
+# Public addresses get https:// / wss://
+no http GET example.com/api            # -> https://example.com/api
+no ws listen api.example.com/ws        # -> wss://api.example.com/ws
+
+# Explicit schemes are always preserved
+no http GET http://example.com/api     # -> http://example.com/api</code></pre>
+
+      <p class="muted">TCP, UDP, and MQTT are not affected by URL normalization. They use raw <code>host:port</code> addresses (bracket IPv6 with <code>[host]:port</code>). MQTT also accepts <code>mqtt://</code> scheme.</p>
+    </section>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+      <p>no-cli -- built with Rust</p>
+    </footer>
+
+  </main>
+
+  <script>
+    // ---- Mobile menu ----
+    const hamburger = document.getElementById("hamburger");
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
+
+    hamburger.addEventListener("click", function () {
+      hamburger.classList.toggle("open");
+      sidebar.classList.toggle("open");
+      overlay.classList.toggle("open");
+    });
+
+    overlay.addEventListener("click", function () {
+      hamburger.classList.remove("open");
+      sidebar.classList.remove("open");
+      overlay.classList.remove("open");
+    });
+
+    // Close mobile menu on nav link click
+    sidebar.querySelectorAll(".sidebar-nav a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        if (window.innerWidth <= 768) {
+          hamburger.classList.remove("open");
+          sidebar.classList.remove("open");
+          overlay.classList.remove("open");
+        }
+      });
+    });
+
+    // ---- Smooth scroll ----
+    document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+      anchor.addEventListener("click", function (e) {
+        e.preventDefault();
+        var target = document.querySelector(this.getAttribute("href"));
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    });
+
+    // ---- Active section highlighting ----
+    var navLinks = document.querySelectorAll(".sidebar-nav a[href^='#']");
+    var sections = [];
+
+    navLinks.forEach(function (link) {
+      var id = link.getAttribute("href").slice(1);
+      var el = document.getElementById(id);
+      if (el) sections.push({ id: id, el: el, link: link });
+    });
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            navLinks.forEach(function (l) { l.classList.remove("active"); });
+            var match = sections.find(function (s) { return s.el === entry.target; });
+            if (match) match.link.classList.add("active");
+          }
+        });
+      },
+      { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+
+    sections.forEach(function (s) { observer.observe(s.el); });
+
+    // ---- Copy to clipboard ----
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(function () {
+          btn.textContent = "Copy";
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    }
+
+    // Add copy buttons to all pre > code blocks
+    document.querySelectorAll("pre").forEach(function (pre) {
+      if (pre.querySelector(".copy-btn")) return; // skip hero install
+      var code = pre.querySelector("code");
+      if (!code) return;
+      var btn = document.createElement("button");
+      btn.className = "copy-btn";
+      btn.textContent = "Copy";
+      btn.addEventListener("click", function () {
+        copyText(code.textContent, btn);
+      });
+      pre.appendChild(btn);
+    });
+
+    // ---- Syntax highlighting ----
+    function highlightShell(text) {
+      var lines = text.split("\n");
+      return lines.map(function (line) {
+        // Comments
+        if (/^\s*#/.test(line)) {
+          return '<span class="sh-comment">' + escapeHtml(line) + "</span>";
+        }
+
+        var result = "";
+        var i = 0;
+        var chars = line;
+
+        while (i < chars.length) {
+          // Strings (single or double quoted)
+          if (chars[i] === "'" || chars[i] === '"') {
+            var quote = chars[i];
+            var end = chars.indexOf(quote, i + 1);
+            if (end === -1) end = chars.length - 1;
+            result += '<span class="sh-str">' + escapeHtml(chars.slice(i, end + 1)) + "</span>";
+            i = end + 1;
+            continue;
+          }
+
+          // Environment variables
+          if (chars[i] === "$") {
+            var varMatch = chars.slice(i).match(/^\$[A-Za-z_][A-Za-z0-9_]*/);
+            if (varMatch) {
+              result += '<span class="sh-var">' + escapeHtml(varMatch[0]) + "</span>";
+              i += varMatch[0].length;
+              continue;
+            }
+          }
+
+          // Pipes
+          if (chars[i] === "|") {
+            result += '<span class="sh-pipe">|</span>';
+            i++;
+            continue;
+          }
+
+          // Flags (--flag or -f)
+          var flagMatch = chars.slice(i).match(/^(--?[a-zA-Z][a-zA-Z0-9-]*)/);
+          if (flagMatch && (i === 0 || /\s/.test(chars[i - 1]))) {
+            result += '<span class="sh-flag">' + escapeHtml(flagMatch[1]) + "</span>";
+            i += flagMatch[1].length;
+            continue;
+          }
+
+          // "no" command at start of line or after pipe
+          var noMatch = chars.slice(i).match(/^no(?=\s)/);
+          if (noMatch && (i === 0 || /[\s|]/.test(chars[i - 1]) || chars.slice(Math.max(0, i - 2), i).trim() === "$")) {
+            result += '<span class="sh-cmd">no</span>';
+            i += 2;
+            continue;
+          }
+
+          // Common shell commands
+          var cmdMatch = chars.slice(i).match(/^(echo|cat|export)(?=\s)/);
+          if (cmdMatch && (i === 0 || /[\s|;]/.test(chars[i - 1]))) {
+            result += '<span class="sh-cmd">' + escapeHtml(cmdMatch[1]) + "</span>";
+            i += cmdMatch[1].length;
+            continue;
+          }
+
+          result += escapeHtml(chars[i]);
+          i++;
+        }
+
+        return result;
+      }).join("\n");
+    }
+
+    function highlightJson(text) {
+      var lines = text.split("\n");
+      return lines.map(function (line) {
+        // Comments (non-standard JSON, but used in docs)
+        if (/^\s*\/\//.test(line)) {
+          return '<span class="sh-comment">' + escapeHtml(line) + "</span>";
+        }
+
+        var result = "";
+        var i = 0;
+
+        while (i < line.length) {
+          // JSON keys: "key":
+          var keyMatch = line.slice(i).match(/^"([^"]*)"(?=\s*:)/);
+          if (keyMatch) {
+            result += '<span class="json-key">"' + escapeHtml(keyMatch[1]) + '"</span>';
+            i += keyMatch[0].length;
+            continue;
+          }
+
+          // JSON strings: "value"
+          if (line[i] === '"') {
+            var end = line.indexOf('"', i + 1);
+            if (end === -1) end = line.length - 1;
+            result += '<span class="json-str">' + escapeHtml(line.slice(i, end + 1)) + "</span>";
+            i = end + 1;
+            continue;
+          }
+
+          // Numbers
+          var numMatch = line.slice(i).match(/^-?\d+\.?\d*/);
+          if (numMatch && (i === 0 || /[\s:,\[]/.test(line[i - 1]))) {
+            result += '<span class="json-num">' + escapeHtml(numMatch[0]) + "</span>";
+            i += numMatch[0].length;
+            continue;
+          }
+
+          // Booleans
+          var boolMatch = line.slice(i).match(/^(true|false)/);
+          if (boolMatch && (i === 0 || /[\s:,\[]/.test(line[i - 1]))) {
+            result += '<span class="json-bool">' + escapeHtml(boolMatch[0]) + "</span>";
+            i += boolMatch[0].length;
+            continue;
+          }
+
+          // Null
+          if (line.slice(i, i + 4) === "null" && (i === 0 || /[\s:,\[]/.test(line[i - 1]))) {
+            result += '<span class="json-null">null</span>';
+            i += 4;
+            continue;
+          }
+
+          result += escapeHtml(line[i]);
+          i++;
+        }
+
+        return result;
+      }).join("\n");
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // Apply syntax highlighting
+    document.querySelectorAll("code.lang-sh").forEach(function (el) {
+      el.innerHTML = highlightShell(el.textContent);
+    });
+
+    document.querySelectorAll("code.lang-json").forEach(function (el) {
+      el.innerHTML = highlightJson(el.textContent);
+    });
+  </script>
+</body>
+</html>
