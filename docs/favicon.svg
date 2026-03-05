@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-28 -85 302 302" fill="#00ff88">
+  <rect x="-28" y="-85" width="302" height="302" rx="60" ry="60" fill="#0a0a0f"/>
   <rect x="6" y="0" width="38" height="7"/>
   <rect x="6" y="9" width="38" height="2"/>
   <rect x="6" y="13" width="38" height="8"/>
