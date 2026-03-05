@@ -40,6 +40,7 @@ surge-ping = "0.8"
 [dev-dependencies]
 axum = { version = "0.8", features = ["ws"] }
 rumqttd = "0.20"
+tempfile = "3"
 
 [profile.release]
 lto = true

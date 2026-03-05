@@ -50,6 +50,7 @@ async fn main() {
     Command::Ping(args) => protocols::ping::run(args, mode, no_color, timeout, count, verbose).await,
     Command::Whois(args) => protocols::whois::run(args, mode, no_color, timeout, verbose).await,
     Command::Jq(args) => protocols::jq::run(args).await,
+    Command::Skills { action } => protocols::skills::run(action).await,
   };
 
   if let Err(e) = result {

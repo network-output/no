@@ -11,6 +11,7 @@ pub mod http;
 pub mod jq;
 pub mod mqtt;
 pub mod ping;
+pub mod skills;
 pub mod sse;
 pub mod tcp;
 pub mod udp;

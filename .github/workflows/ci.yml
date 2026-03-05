@@ -86,6 +86,17 @@ jobs:
       - name: Run tests
         run: just test
 
+  plugin-validate:
+    name: Validate Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@just
+
+      - name: Validate plugin structure
+        run: just validate-plugin
+
   build-cross:
     name: Build (${{ matrix.name }})
     needs: lint

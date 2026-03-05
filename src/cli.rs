@@ -117,6 +117,39 @@ pub enum Command {
   /// Filter JSON from stdin with a jq expression.
   #[command(about = "Filter JSON from stdin with a jq expression")]
   Jq(JqArgs),
+
+  /// Manage AI agent skills.
+  #[command(about = "Manage AI agent skills")]
+  Skills {
+    #[command(subcommand)]
+    action: SkillsAction,
+  },
+}
+
+// -- Skills --
+
+/// Skills subcommand: install or export AI agent skills.
+#[derive(Subcommand)]
+pub enum SkillsAction {
+  #[command(about = "Install skills to ~/.claude/plugins/no")]
+  Install(SkillsInstallArgs),
+
+  #[command(about = "Export skills to a directory")]
+  Export(SkillsExportArgs),
+}
+
+/// Arguments for skills install.
+#[derive(clap::Args)]
+pub struct SkillsInstallArgs {
+  #[arg(long, value_name = "DIR", help = "Custom install directory")]
+  pub path: Option<String>,
+}
+
+/// Arguments for skills export.
+#[derive(clap::Args)]
+pub struct SkillsExportArgs {
+  #[arg(help = "Target directory")]
+  pub path: String,
 }
 
 // -- Jq --
@@ -712,6 +745,42 @@ mod tests {
       panic!("expected Whois command")
     };
     assert_eq!(args.query, "8.8.8.8");
+  }
+
+  #[test]
+  fn skills_install() {
+    let cli = Cli::try_parse_from(["no", "skills", "install"]).unwrap();
+    let Command::Skills { action } = cli.command else {
+      panic!("expected Skills command")
+    };
+    let SkillsAction::Install(args) = action else {
+      panic!("expected Install action")
+    };
+    assert!(args.path.is_none());
+  }
+
+  #[test]
+  fn skills_install_with_path() {
+    let cli = Cli::try_parse_from(["no", "skills", "install", "--path", "/tmp/custom"]).unwrap();
+    let Command::Skills { action } = cli.command else {
+      panic!("expected Skills command")
+    };
+    let SkillsAction::Install(args) = action else {
+      panic!("expected Install action")
+    };
+    assert_eq!(args.path.as_deref(), Some("/tmp/custom"));
+  }
+
+  #[test]
+  fn skills_export() {
+    let cli = Cli::try_parse_from(["no", "skills", "export", "/tmp/out"]).unwrap();
+    let Command::Skills { action } = cli.command else {
+      panic!("expected Skills command")
+    };
+    let SkillsAction::Export(args) = action else {
+      panic!("expected Export action")
+    };
+    assert_eq!(args.path, "/tmp/out");
   }
 
   #[test]
