@@ -177,3 +177,19 @@ HTTP, WebSocket, and SSE auto-infer scheme when omitted:
 
 - Protocols with ports (TCP, UDP, MQTT): brackets required -- `[::1]:9090`
 - Portless protocols (Ping, DNS, WHOIS): brackets optional -- `::1` or `[::1]`
+
+## AI Skills
+
+AI skills that teach agents how to use `no` for networking tasks. Compatible with any agent that supports the [Agent Skills](https://agentskills.io) open standard.
+
+| Skill | Description |
+|---|---|
+| `http-requests` | HTTP API testing (GET, POST, PUT, DELETE, auth, headers, body, downloads) |
+| `websocket-debugging` | WebSocket connection debugging (listen, send, lifecycle monitoring) |
+| `network-diagnostics` | DNS lookups, ICMP ping, WHOIS queries |
+| `mqtt-messaging` | MQTT publish/subscribe messaging |
+| `tcp-udp-testing` | Raw TCP connect/listen, UDP send/listen |
+| `sse-monitoring` | Server-Sent Events stream monitoring |
+| `output-filtering` | jq filtering (`--jq` flag and standalone `no jq`) |
+
+Install: `claude --plugin network-output/no-skills` or `no skills install`

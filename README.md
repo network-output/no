@@ -221,3 +221,41 @@ just release  # release build
 ```
 
 See [AGENTS.md](AGENTS.md) for development conventions.
+
+## AI Skills
+
+AI skills that teach agents how to use `no` for networking tasks. Compatible with any agent that supports the [Agent Skills](https://agentskills.io) open standard: Claude Code, Codex CLI, Cursor, Gemini CLI, and others.
+
+| Skill | Description |
+|---|---|
+| `http-requests` | HTTP API testing (GET, POST, PUT, DELETE, auth, headers, body, downloads) |
+| `websocket-debugging` | WebSocket connection debugging (listen, send, lifecycle monitoring) |
+| `network-diagnostics` | DNS lookups, ICMP ping, WHOIS queries |
+| `mqtt-messaging` | MQTT publish/subscribe messaging |
+| `tcp-udp-testing` | Raw TCP connect/listen, UDP send/listen |
+| `sse-monitoring` | Server-Sent Events stream monitoring |
+| `output-filtering` | jq filtering (`--jq` flag and standalone `no jq`) |
+
+### Install the plugin
+
+**From GitHub:**
+
+```sh
+claude --plugin network-output/no-skills
+```
+
+**Built into `no`:**
+
+```sh
+no skills install
+```
+
+This writes the plugin to `~/.claude/plugins/no/`.
+
+**Local (from source):**
+
+```sh
+claude --plugin-dir ./claude-plugin
+```
+
+See [claude-plugin/README.md](claude-plugin/README.md) for full details.

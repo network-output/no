@@ -867,6 +867,8 @@
       <a href="#exit-codes">Exit Codes</a>
       <a href="#env">Environment</a>
       <a href="#url-normalization">URL Normalization</a>
+      <div class="nav-section">Integrations</div>
+      <a href="#ai-skills">AI Skills</a>
     </div>
     <div class="sidebar-footer">
       <a href="https://github.com/network-output/no" target="_blank" rel="noopener noreferrer">
@@ -1552,6 +1554,40 @@ no ws listen api.example.com/ws        # -> wss://api.example.com/ws
 no http GET http://example.com/api     # -> http://example.com/api</code></pre>
 
       <p class="muted">TCP, UDP, and MQTT are not affected by URL normalization. They use raw <code>host:port</code> addresses (bracket IPv6 with <code>[host]:port</code>). MQTT also accepts <code>mqtt://</code> scheme.</p>
+    </section>
+
+    <section class="section" id="ai-skills">
+      <h2><span class="accent">#</span> AI Skills</h2>
+      <p>AI skills that teach agents how to use <code>no</code> for networking tasks. Compatible with any agent that supports the <a href="https://agentskills.io" target="_blank" rel="noopener noreferrer">Agent Skills</a> open standard: Claude Code, Codex CLI, Cursor, Gemini CLI, and others.</p>
+
+      <h3>Available Skills</h3>
+      <table>
+        <thead>
+          <tr><th>Skill</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>http-requests</code></td><td>HTTP API testing (GET, POST, PUT, DELETE, auth, headers, body, downloads)</td></tr>
+          <tr><td><code>websocket-debugging</code></td><td>WebSocket connection debugging (listen, send, lifecycle monitoring)</td></tr>
+          <tr><td><code>network-diagnostics</code></td><td>DNS lookups, ICMP ping, WHOIS queries</td></tr>
+          <tr><td><code>mqtt-messaging</code></td><td>MQTT publish/subscribe messaging</td></tr>
+          <tr><td><code>tcp-udp-testing</code></td><td>Raw TCP connect/listen, UDP send/listen</td></tr>
+          <tr><td><code>sse-monitoring</code></td><td>Server-Sent Events stream monitoring</td></tr>
+          <tr><td><code>output-filtering</code></td><td>jq filtering (<code>--jq</code> flag and standalone <code>no jq</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Install the Plugin</h3>
+      <p><strong>From GitHub:</strong></p>
+      <pre><code class="lang-sh">claude --plugin network-output/no-skills</code></pre>
+
+      <p><strong>Built into <code>no</code>:</strong></p>
+      <pre><code class="lang-sh">no skills install</code></pre>
+      <p class="muted">This writes the plugin to <code>~/.claude/plugins/no/</code>.</p>
+
+      <p><strong>Local (from source):</strong></p>
+      <pre><code class="lang-sh">claude --plugin-dir ./claude-plugin</code></pre>
+
+      <p>See the <a href="https://github.com/network-output/no/tree/main/claude-plugin" target="_blank" rel="noopener noreferrer">plugin README</a> for full details.</p>
     </section>
 
     <!-- Footer -->
