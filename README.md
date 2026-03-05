@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-light.svg" />
+    <img src="docs/logo.svg" alt="no" width="246" />
+  </picture>
+</p>
+
 # no (network-output)
 
 A fast, structured networking CLI for HTTP, WebSocket, TCP, UDP, MQTT, SSE, DNS, Ping, and WHOIS.
