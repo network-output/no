@@ -1,5 +1,5 @@
 {
-  "name": "network-output",
+  "name": "@network-output/no",
   "version": "0.1.0",
   "description": "Networking CLI for HTTP, WebSocket, TCP, UDP, DNS, Ping, WHOIS, MQTT, and SSE. Structured JSON output built for machines, readable by humans.",
   "license": "Apache-2.0",

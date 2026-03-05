@@ -21,13 +21,13 @@ brew install network-output/tap/network-output
 ### npm
 
 ```sh
-npx network-output
+npx @network-output/no
 ```
 
 For a permanent install:
 
 ```sh
-npm install -g network-output
+npm install -g @network-output/no
 ```
 
 ### GitHub Releases

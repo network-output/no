@@ -193,7 +193,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          cd npm/network-output
+          cd npm/@network-output/no
 
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
